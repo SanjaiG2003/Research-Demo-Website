@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper – Meridian Research Hub</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="papers">
+<div id="site-header"></div>
+
+<main class="container" id="main"></main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const id = Number(new URLSearchParams(location.search).get("id"));
+  const p = approvedPapers().find(x => x.id === id);
+  const main = $("#main");
+
+  if (!p) {
+    document.title = "Paper not found – Meridian Research Hub";
+    main.innerHTML = `<div class="page-head"><h1>Paper not found</h1><p class="muted">This paper does not exist or has not been published.</p><a class="btn" href="papers.html">Back to all papers</a></div>`;
+  } else {
+    document.title = p.title + " – Meridian Research Hub";
+    // related = same area or shared keywords, ranked by overlap
+    const related = approvedPapers().filter(x => x.id !== p.id).map(x => ({
+      x, score: (x.area === p.area ? 2 : 0) + x.keywords.filter(k => p.keywords.includes(k)).length
+    })).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map(r => r.x);
+
+    const viewer = p.publicView
+      ? `<div class="pdf-frame"><div><p style="font-size:2rem;margin:0">📄</p><p><strong>PDF viewer area</strong></p>
+         <p class="small">In the live site, PDF.js renders the paper here. DOCX uploads are converted to PDF first.</p></div></div>`
+      : `<div class="notice warn">Online viewing is not permitted for this paper. Contact the author to request access.</div>`;
+
+    main.innerHTML = `
+      <nav class="crumbs" aria-label="Breadcrumb"><a href="index.html">Home</a> / <a href="papers.html">Papers</a> / ${esc(p.area)}</nav>
+      <div class="detail-grid" style="margin-top:12px">
+        <article>
+          <span class="tag">${esc(p.area)}</span>
+          <h1 style="margin-top:10px">${esc(p.title)}</h1>
+          <p class="meta">${esc(p.authors)} · ${p.year}</p>
+          <h2 style="font-size:1.2rem;margin-top:28px">Abstract</h2>
+          <p>${esc(p.abstract)}</p>
+          <h2 style="font-size:1.2rem">Keywords</h2>
+          <div class="kw">${p.keywords.map(k => `<a class="chip" href="papers.html?q=${encodeURIComponent(k)}">${esc(k)}</a>`).join("")}</div>
+          <h2 style="font-size:1.2rem;margin-top:28px">Read online</h2>
+          ${viewer}
+        </article>
+        <aside>
+          <div class="card">
+            <dl class="detail-meta">
+              <dt>Author(s)</dt><dd>${esc(p.authors)}</dd>
+              <dt>Research area</dt><dd>${esc(p.area)}</dd>
+              <dt>Year</dt><dd>${p.year}</dd>
+              <dt>Views</dt><dd>${p.views.toLocaleString()}</dd>
+              <dt>Downloads</dt><dd>${p.downloads.toLocaleString()}</dd>
+            </dl>
+            <div class="actions" style="margin-top:16px">
+              <button class="save-btn ${isSaved(p.id) ? "on" : ""}" data-save="${p.id}">${isSaved(p.id) ? "★ Saved" : "☆ Save"}</button>
+              ${p.publicView ? `<button class="btn btn-primary btn-sm" onclick="toast('Download starts here in the live site')">Download PDF</button>` : ""}
+            </div>
+            <p class="small muted" style="margin:14px 0 0">Registered users can bookmark papers. <a href="auth.html">Log in or register</a>.</p>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3>Ask about this paper</h3>
+            <p class="small muted">Use the AI assistant for a short summary or to ask questions. Answers should be checked against the original paper.</p>
+            <a class="btn btn-sm" href="assistant.html?paper=${p.id}">Open assistant</a>
+          </div>
+        </aside>
+      </div>
+      <section class="section">
+        <h2>Related papers</h2>
+        <div class="grid grid-3">${related.length ? related.map(paperCard).join("") : `<p class="muted">No related papers yet.</p>`}</div>
+      </section>`;
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Research Hub – Open research repository</title>
+<meta name="description" content="Browse, search and ask questions about research papers from our four-person research team.">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="home">
+<div id="site-header"></div>
+
+<main>
+  <section class="hero">
+    <div class="container hero-inner">
+      <div>
+        <p class="eyebrow">Open research repository</p>
+        <h1>Research you can search, read and ask questions about.</h1>
+        <p class="lead">Explore peer-ready papers from our research team across machine learning, public health, environmental science and education.</p>
+        <form class="search-bar" action="papers.html" role="search">
+          <label class="sr-only" for="q">Search papers</label>
+          <input id="q" type="search" name="q" placeholder="Search by topic, keyword or author…">
+          <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+      </div>
+      <aside class="hero-card" aria-label="What you can do here">
+        <h3>What you can do</h3>
+        <ul>
+          <li>Filter papers by subject, author and year</li>
+          <li>Read supported papers in your browser</li>
+          <li>Save papers to read later</li>
+          <li>Ask the AI assistant about a topic and get source references</li>
+        </ul>
+        <a class="btn btn-primary" href="assistant.html">Try the AI assistant</a>
+      </aside>
+    </div>
+    <div class="container">
+      <div class="stat-strip" id="stats"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div><h2>Featured papers</h2><p>Recent work chosen by the research team.</p></div>
+        <a class="btn" href="papers.html">View all papers</a>
+      </div>
+      <div class="grid grid-3" id="featured"></div>
+    </div>
+  </section>
+
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head"><div><h2>Research highlights</h2><p>Browse by research area.</p></div></div>
+      <div class="grid grid-4" id="areas"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head"><div><h2>Meet the researchers</h2><p>Four researchers, one shared repository.</p></div><a class="btn" href="about.html">About the team</a></div>
+      <div class="grid grid-4" id="team"></div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="cta-band">
+        <div><h2>Not sure where to start?</h2><p>Describe your interest in plain language and the assistant will suggest relevant papers.</p></div>
+        <a class="btn" href="assistant.html">Ask the assistant</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const ok = approvedPapers();
+  const totalViews = ok.reduce((n, p) => n + p.views, 0);
+  const totalDl = ok.reduce((n, p) => n + p.downloads, 0);
+  $("#stats").innerHTML = [
+    [ok.length, "Published papers"], [RESEARCHERS.length, "Researchers"],
+    [AREAS.length, "Research areas"], [totalViews.toLocaleString(), "Paper views"]
+  ].map(([n, l]) => `<div class="stat"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join("");
+
+  $("#featured").innerHTML = ok.filter(p => p.featured).slice(0, 3).map(paperCard).join("");
+
+  $("#areas").innerHTML = AREAS.map(a => {
+    const n = ok.filter(p => p.area === a).length;
+    return `<a class="card area-card" href="papers.html?area=${encodeURIComponent(a)}"><div class="count">${n}</div><h3>${esc(a)}</h3><p class="meta">${n === 1 ? "paper" : "papers"}</p></a>`;
+  }).join("");
+
+  $("#team").innerHTML = RESEARCHERS.map(r => `
+    <div class="card"><div class="person"><div class="avatar" aria-hidden="true">${initials(r.name)}</div>
+    <div><h3 style="margin-bottom:2px">${esc(r.name)}</h3><p class="meta">${esc(r.role)}</p></div></div></div>`).join("");
+</script>
+</body>
+</html>

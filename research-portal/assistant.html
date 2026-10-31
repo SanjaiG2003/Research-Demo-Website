@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Research Assistant – Meridian Research Hub</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="assistant">
+<div id="site-header"></div>
+
+<main class="container">
+  <header class="page-head">
+    <h1>AI research assistant</h1>
+    <p class="muted" style="max-width:70ch">Describe a topic in everyday language. The assistant searches the approved papers and answers using matching content, with references to the source papers.</p>
+  </header>
+
+  <div class="notice warn" style="margin-bottom:20px">
+    <strong>Design preview.</strong> This page simulates the assistant with simple keyword matching on the sample data. In the live site, answers are generated from indexed paper text (RAG). Answers should always be checked against the original papers.
+  </div>
+
+  <div class="assistant-layout" style="padding-bottom:40px">
+    <section class="chat" aria-label="Chat with the assistant">
+      <div class="mode-bar" role="tablist" aria-label="Assistant mode">
+        <button type="button" class="active" data-mode="ask">Ask a question</button>
+        <button type="button" data-mode="recommend">Recommend papers</button>
+        <button type="button" data-mode="summary">Summarise a paper</button>
+      </div>
+      <div class="chat-log" id="log" role="log" aria-live="polite">
+        <div class="msg bot"><p>Hello! Ask me about a research topic, or switch mode to get paper recommendations or a short summary.</p></div>
+      </div>
+      <form class="chat-input" id="form">
+        <select id="paperPick" hidden aria-label="Choose a paper to summarise" style="max-width:55%"></select>
+        <label class="sr-only" for="input">Your message</label>
+        <input id="input" type="text" placeholder="e.g. Can clinics train AI models without sharing patient records?" autocomplete="off">
+        <button class="btn btn-primary" type="submit">Send</button>
+      </form>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h3>Try asking</h3>
+        <div class="suggest" id="suggest"></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Good to know</h3>
+        <ul class="small muted" style="padding-left:1.1em;margin:0">
+          <li>Answers come only from approved papers with extractable text.</li>
+          <li>Scanned PDFs without a text layer are not indexed.</li>
+          <li>It does not search external journal databases.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const STOP = new Set("a an the and or of to in on for with by is are was were be how what why which who can could do does did i me my we our us about from that this these those it its as at into using use used tell give show find any some there their paper papers research study".split(" "));
+  const pool = approvedPapers();
+  let mode = "ask";
+
+  const tokens = s => (s.toLowerCase().match(/[a-z][a-z-]+/g) || []).filter(w => !STOP.has(w) && w.length > 2);
+  const stem = w => w.replace(/(ing|ed|es|s)$/, "");
+
+  function score(p, qTokens) {
+    const hay = {
+      title: tokens(p.title).map(stem), kw: tokens(p.keywords.join(" ")).map(stem),
+      abs: tokens(p.abstract).map(stem), area: tokens(p.area).map(stem)
+    };
+    let s = 0;
+    qTokens.map(stem).forEach(w => {
+      if (hay.title.includes(w)) s += 3;
+      if (hay.kw.includes(w)) s += 3;
+      if (hay.area.includes(w)) s += 2;
+      if (hay.abs.includes(w)) s += 1;
+    });
+    return s;
+  }
+  const retrieve = (q, n = 3) => {
+    const t = tokens(q);
+    return pool.map(p => ({ p, s: score(p, t) })).filter(r => r.s > 0).sort((a, b) => b.s - a.s).slice(0, n);
+  };
+  const sentences = text => text.match(/[^.!?]+[.!?]+/g)?.map(s => s.trim()) || [text];
+  const link = (p, i) => `<a href="paper.html?id=${p.id}">[${i}] ${esc(p.title)}</a> <span class="muted">(${esc(p.authors.split(",")[0])}, ${p.year})</span>`;
+  const sources = list => `<ul class="sources">${list.map((p, i) => `<li>${link(p, i + 1)}</li>`).join("")}</ul>`;
+
+  function add(cls, html) {
+    const el = document.createElement("div");
+    el.className = "msg " + cls; el.innerHTML = html;
+    $("#log").appendChild(el);
+    $("#log").scrollTop = $("#log").scrollHeight;
+  }
+  const NOT_FOUND = `<p>I couldn't find that in the repository. Try different words, or <a href="papers.html">browse the papers</a> directly.</p>`;
+
+  function answer(q) {
+    if (mode === "summary") {
+      const p = pool.find(x => x.id === Number($("#paperPick").value));
+      const s = sentences(p.abstract);
+      return `<p><strong>Summary of “${esc(p.title)}”</strong></p><ul style="padding-left:1.1em;margin:.4em 0">${s.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+        <p class="small muted">Generated from the paper's indexed text. Please check against the original.</p>${sources([p])}`;
+    }
+    const hits = retrieve(q);
+    if (!hits.length) return NOT_FOUND;
+    const papers = hits.map(h => h.p);
+    if (mode === "recommend") {
+      return `<p>Based on your interest, these papers look most relevant:</p>${sources(papers)}`;
+    }
+    // ask: pick the sentence in each top paper that best matches the question
+    const qt = tokens(q).map(stem);
+    const parts = papers.slice(0, 2).map((p, i) => {
+      const best = sentences(p.abstract).map(s => ({ s, n: tokens(s).map(stem).filter(w => qt.includes(w)).length })).sort((a, b) => b.n - a.n)[0].s;
+      return `${esc(best)} <sup>[${i + 1}]</sup>`;
+    });
+    return `<p>${parts.join(" ")}</p>${sources(papers)}<p class="small muted" style="margin:8px 0 0">Answers should be checked against the original papers.</p>`;
+  }
+
+  function send(q) {
+    if (mode === "summary") q = "Summarise: " + $("#paperPick").selectedOptions[0].text;
+    if (!q.trim()) return;
+    add("user", esc(q));
+    setTimeout(() => add("bot", answer(q)), 350);
+  }
+
+  $("#form").addEventListener("submit", e => { e.preventDefault(); send($("#input").value); $("#input").value = ""; });
+
+  $$(".mode-bar button").forEach(b => b.addEventListener("click", () => {
+    mode = b.dataset.mode;
+    $$(".mode-bar button").forEach(x => x.classList.toggle("active", x === b));
+    $("#paperPick").hidden = mode !== "summary";
+    $("#input").hidden = mode === "summary";
+    $("#input").placeholder = mode === "recommend" ? "Describe your research interest…" : "e.g. Can clinics train AI models without sharing patient records?";
+  }));
+
+  $("#paperPick").innerHTML = pool.map(p => `<option value="${p.id}">${esc(p.title)}</option>`).join("");
+  const preselect = new URLSearchParams(location.search).get("paper");
+  if (preselect && pool.some(p => p.id === Number(preselect))) {
+    $("#paperPick").value = preselect;
+    $$(".mode-bar button")[2].click();
+  }
+
+  const examples = ["Can clinics train AI models without sharing patient records?", "What affects vaccination uptake in communities?", "What happens to wetland carbon as sea levels rise?", "Do adaptive quizzes help students in maths?", "What do teachers think about AI writing tools?"];
+  $("#suggest").innerHTML = examples.map(x => `<button type="button">${esc(x)}</button>`).join("");
+  $$("#suggest button").forEach(b => b.addEventListener("click", () => {
+    $$(".mode-bar button")[0].click(); send(b.textContent);
+  }));
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in or register – Meridian Research Hub</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="auth">
+<div id="site-header"></div>
+
+<main class="container">
+  <div class="auth-wrap">
+    <div class="card">
+      <h1 style="font-size:1.6rem;text-align:center">Welcome</h1>
+      <div class="auth-tabs" role="tablist">
+        <button type="button" role="tab" class="active" data-mode="login" aria-selected="true">Log in</button>
+        <button type="button" role="tab" data-mode="register" aria-selected="false">Register</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <div class="field" id="name-field" hidden><label for="name">Full name</label><input id="name" type="text" autocomplete="name"><span class="error" data-for="name"></span></div>
+        <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email"><span class="error" data-for="email"></span></div>
+        <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"><span class="hint" id="pw-hint" hidden>At least 8 characters.</span><span class="error" data-for="password"></span></div>
+        <div class="field" id="confirm-field" hidden><label for="confirm">Confirm password</label><input id="confirm" type="password" autocomplete="new-password"><span class="error" data-for="confirm"></span></div>
+        <label class="check" id="terms-field" hidden style="margin-bottom:16px"><input type="checkbox" id="terms"> <span>I agree to the privacy policy and terms of use.</span></label>
+        <span class="error" data-for="terms"></span>
+
+        <div class="field" id="role-field">
+          <label for="role">Preview as (demo only)</label>
+          <select id="role"><option value="user">Registered user</option><option value="researcher">Researcher</option><option value="admin">Super-admin</option></select>
+          <span class="hint">Real sign-in and roles are handled by the backend. This only lets you preview each dashboard.</span>
+        </div>
+
+        <button class="btn btn-primary" type="submit" id="submit" style="width:100%">Log in</button>
+        <p class="small muted" style="text-align:center;margin:14px 0 0" id="forgot"><a href="#" onclick="toast('Password reset email would be sent');return false">Forgot your password?</a></p>
+      </form>
+    </div>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  let mode = "login";
+  const dest = { user: "saved.html", researcher: "researcher.html", admin: "admin.html" };
+
+  function setMode(m) {
+    mode = m;
+    $$(".auth-tabs button").forEach(b => { const on = b.dataset.mode === m; b.classList.toggle("active", on); b.setAttribute("aria-selected", on); });
+    const reg = m === "register";
+    ["name-field", "confirm-field", "terms-field", "pw-hint"].forEach(i => $("#" + i).hidden = !reg);
+    $("#role-field").hidden = reg;
+    $("#forgot").hidden = reg;
+    $("#submit").textContent = reg ? "Create account" : "Log in";
+    $("#password").autocomplete = reg ? "new-password" : "current-password";
+    $$(".error").forEach(e => e.textContent = "");
+  }
+  $$(".auth-tabs button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+  $("#auth-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const errors = {};
+    if (mode === "register" && $("#name").value.trim().length < 2) errors.name = "Please enter your name.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("#email").value)) errors.email = "Please enter a valid email address.";
+    if ($("#password").value.length < (mode === "register" ? 8 : 1)) errors.password = mode === "register" ? "Use at least 8 characters." : "Please enter your password.";
+    if (mode === "register") {
+      if ($("#confirm").value !== $("#password").value) errors.confirm = "Passwords do not match.";
+      if (!$("#terms").checked) errors.terms = "Please accept the terms to continue.";
+    }
+    $$(".error").forEach(el => el.textContent = errors[el.dataset.for] || "");
+    if (Object.keys(errors).length) return;
+
+    if (mode === "register") {
+      toast("Account created – check your email to verify it");
+      setMode("login");
+    } else {
+      location.href = dest[$("#role").value];
+    }
+  });
+  setMode("login");
+</script>
+</body>
+</html>

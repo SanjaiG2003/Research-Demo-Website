@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Researcher dashboard – Meridian Research Hub</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="researcher">
+<div id="site-header"></div>
+
+<div class="dash">
+  <nav class="sidebar" aria-label="Dashboard">
+    <h4>Researcher</h4>
+    <button type="button" data-tab="papers">My papers</button>
+    <button type="button" data-tab="upload" id="tab-btn-upload">Upload paper</button>
+    <button type="button" data-tab="csv">CSV import</button>
+    <button type="button" onclick="location.href='auth.html'">Log out</button>
+  </nav>
+
+  <main class="dash-main">
+    <!-- MY PAPERS -->
+    <section class="panel" id="tab-papers">
+      <div class="dash-head">
+        <div><h1>My papers</h1><p class="muted" style="margin:0">Signed in as <strong id="who"></strong></p></div>
+        <button class="btn btn-primary" type="button" id="new-paper">+ Upload paper</button>
+      </div>
+      <div class="grid grid-4" id="counts" style="margin-bottom:20px"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Category</th><th>Year</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="small muted" style="margin-top:12px">New uploads stay <em>Pending</em> until the super-admin approves them. Only approved papers appear on the public site and in the AI assistant.</p>
+    </section>
+
+    <!-- UPLOAD / EDIT -->
+    <section class="panel" id="tab-upload">
+      <div class="dash-head"><h1 id="form-title">Upload a paper</h1></div>
+      <form class="card" id="upload-form" novalidate style="max-width:760px">
+        <div class="field"><label for="title">Title *</label><input id="title" type="text"><span class="error" data-for="title"></span></div>
+        <div class="field"><label for="abstract">Abstract *</label><textarea id="abstract"></textarea><span class="error" data-for="abstract"></span></div>
+        <div class="form-row">
+          <div class="field"><label for="authors">Author(s) *</label><input id="authors" type="text" placeholder="Separate with commas"><span class="error" data-for="authors"></span></div>
+          <div class="field"><label for="year">Publication year *</label><input id="year" type="number" min="1900" max="2100"><span class="error" data-for="year"></span></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label for="category">Category *</label><select id="category"></select></div>
+          <div class="field"><label for="keywords">Keywords *</label><input id="keywords" type="text" placeholder="Separate with commas"><span class="error" data-for="keywords"></span></div>
+        </div>
+        <div class="field drop"><label for="file">Paper file (PDF or DOCX) <span id="file-req">*</span></label>
+          <input id="file" type="file" accept=".pdf,.docx"><span class="hint">Maximum 25 MB. Scanned PDFs without selectable text can be viewed but will not be searchable by the AI assistant.</span>
+          <span class="error" data-for="file"></span></div>
+        <label class="check" style="margin-bottom:16px"><input type="checkbox" id="publicView" checked> <span>Allow readers to view this paper online</span></label>
+        <div class="actions"><button class="btn btn-primary" type="submit" id="save-btn">Submit for approval</button><button class="btn" type="button" id="cancel">Cancel</button></div>
+      </form>
+    </section>
+
+    <!-- CSV -->
+    <section class="panel" id="tab-csv">
+      <div class="dash-head"><h1>Import metadata from CSV</h1></div>
+      <div class="card" style="max-width:860px">
+        <p>Add several papers' details at once. Use the agreed template, then attach each paper's file afterwards.</p>
+        <p class="small muted">Required columns: <code>title, abstract, authors, year, category, keywords</code></p>
+        <div class="actions" style="margin-bottom:16px"><button class="btn btn-sm" type="button" id="dl-template">Download template</button></div>
+        <div class="field drop"><label for="csv">Choose CSV file</label><input id="csv" type="file" accept=".csv,text/csv"></div>
+        <div id="csv-msg"></div>
+        <div class="table-wrap" id="csv-preview" hidden style="margin:16px 0">
+          <table><thead><tr><th>Title</th><th>Authors</th><th>Year</th><th>Category</th><th>Check</th></tr></thead><tbody id="csv-rows"></tbody></table>
+        </div>
+        <button class="btn btn-primary" type="button" id="csv-import" hidden>Import valid rows</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const me = RESEARCHERS[0];
+  $("#who").textContent = me.name;
+  const show = initTabs();
+  AREAS.forEach(a => $("#category").insertAdjacentHTML("beforeend", `<option>${esc(a)}</option>`));
+
+  let editingId = null;
+  const mine = () => PAPERS.filter(p => p.ownerId === me.id);
+
+  function renderList() {
+    const list = mine();
+    const c = s => list.filter(p => p.status === s).length;
+    $("#counts").innerHTML = [["Total", list.length], ["Approved", c("approved")], ["Pending", c("pending")], ["Archived", c("archived")]]
+      .map(([l, n]) => `<div class="stat"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join("");
+    $("#rows").innerHTML = list.length ? list.map(p => `
+      <tr><td><strong>${esc(p.title)}</strong><br><span class="meta">${esc(p.authors)}</span></td>
+        <td>${esc(p.area)}</td><td>${p.year}</td><td>${statusBadge(p.status)}${p.status === "rejected" ? `<br><span class="meta">See admin note</span>` : ""}</td>
+        <td><div class="actions">
+          <button class="btn btn-sm" data-edit="${p.id}">Edit</button>
+          ${p.status === "archived"
+            ? `<button class="btn btn-sm" data-restore="${p.id}">Restore</button>`
+            : `<button class="btn btn-sm" data-archive="${p.id}">Archive</button>`}
+        </div></td></tr>`).join("")
+      : `<tr><td colspan="5" class="muted">You have not uploaded any papers yet.</td></tr>`;
+  }
+
+  $("#rows").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.edit) startEdit(Number(b.dataset.edit));
+    if (b.dataset.archive) { PAPERS.find(p => p.id === Number(b.dataset.archive)).status = "archived"; renderList(); toast("Paper archived and removed from the public site"); }
+    if (b.dataset.restore) { PAPERS.find(p => p.id === Number(b.dataset.restore)).status = "pending"; renderList(); toast("Restored – sent back for approval"); }
+  });
+
+  function resetForm() {
+    editingId = null; $("#upload-form").reset();
+    $$(".error").forEach(e => e.textContent = "");
+    $("#form-title").textContent = "Upload a paper"; $("#save-btn").textContent = "Submit for approval"; $("#file-req").hidden = false;
+  }
+  function startEdit(id) {
+    const p = PAPERS.find(x => x.id === id); editingId = id;
+    $("#title").value = p.title; $("#abstract").value = p.abstract; $("#authors").value = p.authors; $("#year").value = p.year;
+    $("#category").value = p.area; $("#keywords").value = p.keywords.join(", "); $("#publicView").checked = p.publicView;
+    $("#form-title").textContent = "Edit paper"; $("#save-btn").textContent = "Save changes"; $("#file-req").hidden = true;
+    show("upload");
+  }
+  $("#new-paper").addEventListener("click", () => { resetForm(); show("upload"); });
+  $("#cancel").addEventListener("click", () => { resetForm(); show("papers"); });
+  $("#tab-btn-upload").addEventListener("click", () => { if (editingId === null) resetForm(); });
+
+  $("#upload-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const err = {};
+    const v = id => $("#" + id).value.trim();
+    if (v("title").length < 5) err.title = "Enter the paper title.";
+    if (v("abstract").length < 30) err.abstract = "The abstract should be at least 30 characters.";
+    if (!v("authors")) err.authors = "Enter at least one author.";
+    const yr = Number(v("year")); if (!(yr >= 1900 && yr <= 2100)) err.year = "Enter a valid year.";
+    if (!v("keywords")) err.keywords = "Add at least one keyword.";
+    const f = $("#file").files[0];
+    if (editingId === null && !f) err.file = "Please attach a PDF or DOCX file.";
+    if (f) {
+      if (!/\.(pdf|docx)$/i.test(f.name)) err.file = "Only PDF or DOCX files are accepted.";
+      else if (f.size > 25 * 1024 * 1024) err.file = "The file is larger than 25 MB.";
+    }
+    $$(".error").forEach(el => el.textContent = err[el.dataset.for] || "");
+    if (Object.keys(err).length) return;
+
+    const data = { title: v("title"), abstract: v("abstract"), authors: v("authors"), year: yr, area: $("#category").value,
+      keywords: v("keywords").split(",").map(k => k.trim()).filter(Boolean), publicView: $("#publicView").checked };
+    if (editingId !== null) {
+      Object.assign(PAPERS.find(p => p.id === editingId), data);
+      toast("Changes saved");
+    } else {
+      // Live site: upload the file to storage, extract text, then queue for approval.
+      PAPERS.push({ id: Math.max(...PAPERS.map(p => p.id)) + 1, ownerId: me.id, status: "pending", featured: false, views: 0, downloads: 0, ...data });
+      toast("Uploaded – waiting for admin approval");
+    }
+    resetForm(); renderList(); show("papers");
+  });
+
+  /* ---- CSV import ---- */
+  const COLS = ["title", "abstract", "authors", "year", "category", "keywords"];
+  let csvRows = [];
+
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+      else if (c === '"') q = true;
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim()));
+  }
+
+  $("#dl-template").addEventListener("click", () => {
+    const sample = COLS.join(",") + '\n"Example paper title","A short abstract of at least thirty characters.","A. Author, B. Author",2026,"Machine Learning","keyword one, keyword two"\n';
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([sample], { type: "text/csv" })); a.download = "paper-metadata-template.csv"; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  $("#csv").addEventListener("change", async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const msg = $("#csv-msg"); msg.innerHTML = ""; csvRows = [];
+    $("#csv-preview").hidden = true; $("#csv-import").hidden = true;
+    const rows = parseCSV((await file.text()).replace(/^﻿/, ""));
+    const header = (rows[0] || []).map(h => h.trim().toLowerCase());
+    const missing = COLS.filter(c => !header.includes(c));
+    if (missing.length) { msg.innerHTML = `<div class="notice warn">Missing column(s): <strong>${missing.join(", ")}</strong>. Please use the template.</div>`; return; }
+
+    csvRows = rows.slice(1).map((r, i) => {
+      const o = {}; header.forEach((h, j) => o[h] = (r[j] || "").trim());
+      const problems = [];
+      if (o.title.length < 5) problems.push("title");
+      if (o.abstract.length < 30) problems.push("abstract");
+      if (!o.authors) problems.push("authors");
+      if (!(Number(o.year) >= 1900 && Number(o.year) <= 2100)) problems.push("year");
+      if (!AREAS.includes(o.category)) problems.push("category");
+      if (!o.keywords) problems.push("keywords");
+      return { o, problems };
+    });
+    $("#csv-rows").innerHTML = csvRows.map(({ o, problems }) => `<tr><td>${esc(o.title)}</td><td>${esc(o.authors)}</td><td>${esc(o.year)}</td><td>${esc(o.category)}</td>
+      <td>${problems.length ? `<span class="badge bad">Fix: ${problems.join(", ")}</span>` : `<span class="badge ok">OK</span>`}</td></tr>`).join("");
+    const good = csvRows.filter(r => !r.problems.length).length;
+    msg.innerHTML = `<div class="notice ${good === csvRows.length ? "ok" : "warn"}">${good} of ${csvRows.length} rows are valid. Categories must match: ${AREAS.map(esc).join(", ")}.</div>`;
+    $("#csv-preview").hidden = false; $("#csv-import").hidden = !good;
+  });
+
+  $("#csv-import").addEventListener("click", () => {
+    const valid = csvRows.filter(r => !r.problems.length);
+    valid.forEach(({ o }) => PAPERS.push({
+      id: Math.max(...PAPERS.map(p => p.id)) + 1, ownerId: me.id, status: "pending", featured: false, views: 0, downloads: 0, publicView: true,
+      title: o.title, abstract: o.abstract, authors: o.authors, year: Number(o.year), area: o.category, keywords: o.keywords.split(",").map(k => k.trim()).filter(Boolean)
+    }));
+    toast(`${valid.length} paper(s) added as pending – attach files next`);
+    $("#csv").value = ""; $("#csv-rows").innerHTML = ""; $("#csv-preview").hidden = true; $("#csv-import").hidden = true; $("#csv-msg").innerHTML = "";
+    renderList(); show("papers");
+  });
+
+  renderList();
+</script>
+</body>
+</html>

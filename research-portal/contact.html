@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact – Meridian Research Hub</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="contact">
+<div id="site-header"></div>
+
+<main class="container">
+  <header class="page-head">
+    <h1>Contact the research team</h1>
+    <p class="muted">Questions about a paper, collaboration ideas or access requests – send us a message.</p>
+  </header>
+
+  <div class="detail-grid" style="padding-bottom:40px">
+    <form class="card" id="enquiry" novalidate>
+      <div class="form-row">
+        <div class="field"><label for="name">Full name *</label><input id="name" type="text" autocomplete="name"><span class="error" data-for="name"></span></div>
+        <div class="field"><label for="email">Email *</label><input id="email" type="email" autocomplete="email"><span class="error" data-for="email"></span></div>
+      </div>
+      <div class="field"><label for="topic">Topic</label>
+        <select id="topic"><option>General enquiry</option><option>Question about a paper</option><option>Collaboration</option><option>Request access to a paper</option><option>Report a problem</option></select></div>
+      <div class="field"><label for="message">Message *</label><textarea id="message"></textarea><span class="error" data-for="message"></span></div>
+      <button class="btn btn-primary" type="submit">Send enquiry</button>
+      <div id="done" class="notice ok" hidden style="margin-top:16px">Thank you – your enquiry has been sent. We will reply by email.</div>
+    </form>
+
+    <aside class="card">
+      <h3>Other ways to reach us</h3>
+      <p class="meta">Email</p><p><a href="mailto:research@example.org">research@example.org</a></p>
+      <p class="meta">Address</p><p>Replace with your institution's address.</p>
+      <p class="meta">Response time</p><p>We aim to reply within three working days.</p>
+    </aside>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+  const form = $("#enquiry");
+  const rules = {
+    name: v => v.trim().length >= 2 || "Please enter your name.",
+    email: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "Please enter a valid email address.",
+    message: v => v.trim().length >= 10 || "Please write at least 10 characters."
+  };
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    let valid = true;
+    for (const [field, rule] of Object.entries(rules)) {
+      const res = rule($("#" + field).value);
+      $(`[data-for="${field}"]`).textContent = res === true ? "" : res;
+      if (res !== true) valid = false;
+    }
+    if (!valid) return;
+    // Live site: POST to the Django enquiry endpoint here.
+    form.reset();
+    $("#done").hidden = false;
+  });
+</script>
+</body>
+</html>
